@@ -1,12 +1,11 @@
-from langchain_core.messages import HumanMessage
-from langchain_openai import ChatOpenAI
-from langchain.tools import tool
-from langgraph.prebuilt import create_react_agent
+import os
+import google.generativeai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
 
-@tool
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
 def calculate(a: int, b: int) -> str:
     """Perform for basic arithmeric calculation."""
     return f"The result of adding {a} and {b} is {a + b}."
@@ -14,14 +13,8 @@ def calculate(a: int, b: int) -> str:
 
 
 def main():
-    model = ChatOpenAI(temperature=0)
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
-    tools = [calculate]
-
-    agent_executor = create_react_agent(
-        model=model,
-        tools=tools,)
-    
     print("Welcome to the React Agent! Type 'exit' to quit.")
     print("You can ask me perform calculation or chat with me.")
 
@@ -31,12 +24,21 @@ def main():
             print("Exiting the React Agent. Goodbye!")
             break
         
-        print("\nAgent: ", end="")
-        for chunk in agent_executor.stream({"input": [HumanMessage(content=user_input)]}):
-            if "agent" in chunk and "message" in chunk["agent"]:
-                for message in chunk["agent"]["message"]:
-                    print(message.content, end="")
-        print()
+         # Simple tool call detection
+        if "calculate" in user_input.lower():
+            try:
+                parts = [int(x) for x in user_input.split() if x.isdigit()]
+                if len(parts) >= 2:
+                    result = calculate(parts[0], parts[1])
+                    print(f"Agent: {result}")
+                    continue
+            except Exception as e:
+                print(f"Agent: Sorry, error in calculation → {e}")
+                continue
+
+        # Otherwise, use Gemini for free-form chat
+        response = model.generate_content(user_input)
+        print("Agent:", response.text)
 
 if __name__ == "__main__":
     main()
